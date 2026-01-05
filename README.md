@@ -1,166 +1,79 @@
-# Football Match Analytics System
+# Football Analytics Telegram Bot
 
-Комплексная система аналитики футбольных матчей на основе SoccerDataAPI.
+This project is a Telegram bot that provides structured information about upcoming football matches and detailed match reports using the SoccerDataAPI.
 
-## Возможности
+The bot is designed as an analytics and research tool and can be extended for betting models, data analysis, or machine learning pipelines.
 
-Система предоставляет полный анализ матчей, включая:
+---
 
-### Базовые метрики
-- Статистика матчей (победы, ничьи, поражения)
-- Голы за/против, разница голов
-- Очки за игру (PPG)
-- Позиция в таблице
+## Features
 
-### Продвинутые метрики
-- **xG (Expected Goals)** - ожидаемые голы на основе ударов
-- **PPDA (Passes Per Defensive Action)** - интенсивность прессинга
-- **Shot Accuracy** - точность ударов
-- **Shot Conversion** - конверсия ударов в голы
-- **Pass Accuracy** - точность передач
-- **Form Score** - взвешенная оценка формы с учетом силы соперников
+### Upcoming Matches
 
-### Тактический анализ
-- Обнаружение тактических конфликтов
-- Ключевые тактические битвы
-- Анализ стиля игры (владение, прессинг, контратаки)
+- Command: `/upcoming`
+- Fetches upcoming matches from SoccerDataAPI
+- Filters matches by predefined league IDs
+- Groups matches by league
+- Sorts leagues by league ID
+- Displays matches in a clean, structured format:
+  - Home team vs Away team
+  - Date and time
+  - League name
+  - Competition stage
+  - Match ID
+- Each match includes an inline button to request a detailed report
 
-### Дополнительная информация
-- Head-to-head статистика
-- Топ бомбардиры и ассистенты
-- Отсутствующие игроки (травмы, дисквалификации)
-- Match preview (AI-генерированное описание матча)
-- Погодные условия
-- Коэффициенты букмекеров
-- Домашние/гостевые показатели
+---
 
-## Установка
+### Match Report
 
-1. Установите зависимости:
-```bash
-source venv/bin/activate
-pip install -r requirements.txt
-```
+- Triggered via inline button (`Get report`)
+- Fetches full match data by match ID
+- Generates a comprehensive text report including:
+  - Match metadata (teams, league, stage, venue, kickoff)
+  - Match status and score (if available)
+  - Standings snapshot (if available)
+  - Head-to-head statistics
+  - Odds (1X2, Over/Under, Handicap) when available
+  - Lineups, formations, bench, sidelined players
+  - Match events (goals, cards, substitutions)
 
-2. Создайте файл `.env` с вашим API ключом:
-```
-SOCCERDATA_API_KEY=your_api_key_here
-```
+Preview text content is intentionally excluded to keep reports concise and focused on structured data.
 
-## Использование
+---
 
-### Анализ конкретного матча
+## Tech Stack
 
-```bash
-python main.py <match_id>
-```
+- Python
+- Telegram Bot API
+- Requests
+- Pydantic
+- SoccerDataAPI
 
-Например:
-```bash
-python main.py 531585
-```
+---
 
-### Анализ первого предстоящего матча
+## Configuration
 
-Если не указать match_id, система автоматически найдет первый предстоящий матч:
+Environment variables required:
 
-```bash
-python main.py
-```
+- `API_KEY` — SoccerDataAPI key
+- `BOT_TOKEN` — Telegram bot token
 
-## Структура отчета
+---
 
-Отчет включает:
+## Notes
 
-1. **Информация о матче** - дата, время, стадион, статус
-2. **Match Preview** - AI-описание матча (если доступно)
-3. **Head-to-Head** - историческая статистика встреч
-4. **Сравнение команд** - все метрики для обеих команд
-5. **Домашние/гостевые показатели** - раздельная статистика
-6. **Топ игроки** - лучшие бомбардиры и ассистенты
-7. **Новости команд** - отсутствующие игроки
-8. **Прогнозы** - вероятности исходов и коэффициенты
-9. **Тактический анализ** - конфликты и ключевые битвы
+- The bot currently supports a single command flow.
+- League filtering is hardcoded and can be easily adjusted.
+- The project is structured to be extended with:
+  - Machine learning models
+  - Dataset generation
+  - Betting analytics
+  - Additional Telegram commands
 
-## Пример вывода
+---
 
-```
-====================================================================================================
-COMPREHENSIVE MATCH ANALYSIS REPORT
-====================================================================================================
+## Disclaimer
 
-## MATCH INFORMATION
-**Fixture:** Arsenal vs Manchester City
-**Competition:** Premier League (england)
-**Date:** 15/01/2024 | **Time:** 17:30
-**Status:** scheduled
-**Venue:** Emirates Stadium
-
-## HEAD-TO-HEAD STATISTICS
-**Matches Played:** 45
-**Arsenal Wins:** 12
-**Manchester City Wins:** 20
-**Draws:** 13
-**Average Goals per Match:** 2.8
-
-## TEAM PERFORMANCE COMPARISON
-...
-```
-
-## API Endpoints Используемые
-
-- `/matches/` - список матчей
-- `/match/` - детали матча
-- `/match-preview/` - превью матча
-- `/head-to-head/` - статистика встреч
-- `/standing/` - таблица лиги
-- `/team/` - информация о команде
-
-## Метрики, которые вычисляются
-
-### Атакующие
-- xG (Expected Goals)
-- Shot Accuracy %
-- Shot Conversion %
-- Goals per Shot
-- Key Passes
-
-### Оборонительные
-- PPDA (Press Intensity)
-- Tackles, Interceptions, Clearances
-- Goals Conceded per Game
-- Clean Sheet Rate
-
-### Владение мячом
-- Possession %
-- Pass Accuracy %
-- Passes per Game
-
-### Форма
-- Weighted Form Score
-- Points per Game
-- Recent Form (W/D/L string)
-- Home/Away Splits
-
-### Игроки
-- Top Scorers
-- Top Assisters
-- Goal Contributions
-
-## Обработка ошибок
-
-Система включает:
-- Retry логику для API запросов
-- Обработку отсутствующих данных
-- Валидацию всех вычислений
-- Безопасное деление (защита от деления на ноль)
-
-## Расширение функционала
-
-Вы можете легко добавить:
-- Анализ нескольких матчей одновременно
-- Сравнение команд по сезонам
-- Экспорт в JSON/CSV
-- Визуализацию метрик
-- Machine Learning прогнозы
-
+This project is for educational and analytical purposes only.
+It does not provide betting advice or guarantees.
