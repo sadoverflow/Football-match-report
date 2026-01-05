@@ -198,7 +198,7 @@ def _build_report_without_preview(match_id: int) -> str:
             pass
 
     match = FootballMatch.model_validate(match_raw)
-    text = match.generate_full_report()
+    text = match.generate_report_main()
     return _strip_preview_lines(text)
 
 
