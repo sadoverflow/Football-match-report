@@ -1,18 +1,15 @@
+# report.py
 import os
-import asyncio
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime, timezone
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-
 load_dotenv()
 
-ALLOWED_LEAGUE_IDS = {228, 326, 310, 322, 323, 198, 235, 241, 253, 297, 299, 168}
+Json = Dict[str, Any]
 
 
 class API:
@@ -173,15 +170,9 @@ class PreviewData(BaseX):
     prediction: Optional[Prediction] = None
 
 
-class ContentBlock(BaseX):
-    name: str
-    content: str
-
-
 class DetailedPreview(BaseX):
-    word_count: int
+    word_count: int = 0
     match_data: PreviewData
-    content: List[ContentBlock]
 
 
 def _clean_name(x: Any) -> str:
@@ -219,15 +210,13 @@ def _fmt_ts(ts: Optional[int]) -> Optional[str]:
         return None
 
 
-def _extract_preview(preview_raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _extract_preview_signals(preview_raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     match_data = preview_raw.get("match_data")
-    content = preview_raw.get("content") or preview_raw.get("preview_content")
-    if not isinstance(match_data, dict) or not isinstance(content, list) or not content:
+    if not isinstance(match_data, dict):
         return None
     return {
         "word_count": int(preview_raw.get("word_count") or 0),
         "match_data": match_data,
-        "content": content,
     }
 
 
@@ -355,22 +344,6 @@ class FootballMatch(BaseX):
         w = _clean_name(self.winner)
         if w != "TBD":
             r.append(f"Winner: {w.upper()}")
-
-        mp = self.match_preview if isinstance(self.match_preview, dict) else {}
-        has_preview = mp.get("has_preview") is True
-
-        r.append("")
-        if has_preview:
-            wc = mp.get("word_count")
-            ex = mp.get("excitement_rating")
-            bits = ["Preview: available"]
-            if wc not in (None, -1):
-                bits.append(f"Word count: {wc}")
-            if ex is not None:
-                bits.append(f"Excitement: {_fmt_num(ex)}/10")
-            r.append(" | ".join(bits))
-        else:
-            r.append("Preview: not available")
 
         if self.detailed_preview:
             md = self.detailed_preview.match_data
@@ -506,7 +479,7 @@ def _get_complete_match(match_id: int) -> FootballMatch:
 
     if has_preview:
         preview_raw = api.get_match_preview(match_id)
-        extracted = _extract_preview(preview_raw)
+        extracted = _extract_preview_signals(preview_raw)
         if extracted:
             match_raw["detailed_preview"] = extracted
 
@@ -533,180 +506,3 @@ def _get_complete_match(match_id: int) -> FootballMatch:
 def build_report_texts(match_id: int) -> str:
     m = _get_complete_match(match_id)
     return m.generate_report_main()
-
-
-def _chunk_text(s: str, limit: int = 4000) -> List[str]:
-    s = (s or "").strip()
-    if not s:
-        return []
-    if len(s) <= limit:
-        return [s]
-    chunks: List[str] = []
-    lines = s.splitlines()
-    cur: List[str] = []
-    cur_len = 0
-    for line in lines:
-        add = len(line) + 1
-        if cur and cur_len + add > limit:
-            chunks.append("\n".join(cur).strip())
-            cur = [line]
-            cur_len = len(line) + 1
-        else:
-            cur.append(line)
-            cur_len += add
-    if cur:
-        chunks.append("\n".join(cur).strip())
-    return [c for c in chunks if c]
-
-
-def _flatten_upcoming(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-    results = payload.get("results")
-    if not isinstance(results, list):
-        return []
-
-    out: List[Dict[str, Any]] = []
-    for league_block in results:
-        if not isinstance(league_block, dict):
-            continue
-        league_id = league_block.get("league_id")
-        if not isinstance(league_id, int) or league_id not in ALLOWED_LEAGUE_IDS:
-            continue
-
-        league_name = str(league_block.get("league_name") or "")
-        country = league_block.get("country") if isinstance(league_block.get("country"), dict) else {}
-        country_name = str(country.get("name") or "")
-
-        previews = league_block.get("match_previews")
-        if not isinstance(previews, list):
-            continue
-
-        for m in previews:
-            if not isinstance(m, dict):
-                continue
-            mid = m.get("id")
-            if not isinstance(mid, int):
-                continue
-            teams = m.get("teams") if isinstance(m.get("teams"), dict) else {}
-            home = teams.get("home") if isinstance(teams.get("home"), dict) else {}
-            away = teams.get("away") if isinstance(teams.get("away"), dict) else {}
-
-            out.append(
-                {
-                    "league_id": league_id,
-                    "league_name": league_name,
-                    "country_name": country_name,
-                    "stage": league_name,
-                    "match_id": mid,
-                    "date": str(m.get("date") or ""),
-                    "time": str(m.get("time") or ""),
-                    "home": str(home.get("name") or ""),
-                    "away": str(away.get("name") or ""),
-                }
-            )
-
-    return out
-
-
-def _group_by_league(items: List[Dict[str, Any]]) -> List[Tuple[int, List[Dict[str, Any]]]]:
-    by: Dict[int, List[Dict[str, Any]]] = {}
-    for it in items:
-        by.setdefault(int(it["league_id"]), []).append(it)
-
-    for lid in by:
-        by[lid].sort(key=lambda x: (x.get("date") or "", x.get("time") or "", x.get("match_id") or 0))
-
-    return sorted(by.items(), key=lambda kv: kv[0])
-
-
-def _build_league_message(league_id: int, matches: List[Dict[str, Any]]) -> str:
-    league_name = matches[0].get("league_name") or ""
-    country_name = matches[0].get("country_name") or ""
-    stage = matches[0].get("stage") or ""
-
-    header = f"{league_name} ({country_name}) | League ID: {league_id}"
-    if stage and stage != league_name:
-        header += f"\nStage: {stage}"
-
-    lines: List[str] = [header, ""]
-    for m in matches:
-        mid = m["match_id"]
-        date = m.get("date") or "TBD"
-        time_ = m.get("time") or "TBD"
-        home = m.get("home") or "TBD"
-        away = m.get("away") or "TBD"
-        lines.append(f"• {home} (Home) vs {away} (Away) | {date} {time_} | ID: {mid}")
-    return "\n".join(lines)
-
-
-def _build_league_keyboard(matches: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
-    buttons: List[InlineKeyboardButton] = [
-        InlineKeyboardButton(text=f"Report {m['match_id']}", callback_data=f"r:{m['match_id']}") for m in matches
-    ]
-    rows: List[List[InlineKeyboardButton]] = []
-    for i in range(0, len(buttons), 2):
-        rows.append(buttons[i : i + 2])
-    return InlineKeyboardMarkup(rows)
-
-
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Commands: /upcoming")
-
-
-async def cmd_upcoming(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    try:
-        payload = await asyncio.to_thread(api.get_upcoming_matches)
-    except Exception as e:
-        await update.message.reply_text(f"API error: {e}")
-        return
-
-    flat = _flatten_upcoming(payload)
-    grouped = _group_by_league(flat)
-
-    if not grouped:
-        await update.message.reply_text("No upcoming matches for configured leagues.")
-        return
-
-    for league_id, matches in grouped:
-        text = _build_league_message(league_id, matches)
-        kb = _build_league_keyboard(matches)
-
-        chunks = _chunk_text(text, limit=3800)
-        if not chunks:
-            continue
-
-        if len(chunks) == 1:
-            await update.message.reply_text(chunks[0], reply_markup=kb)
-        else:
-            for c in chunks[:-1]:
-                await update.message.reply_text(c)
-            await update.message.reply_text(chunks[-1], reply_markup=kb)
-
-
-async def on_report_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    q = update.callback_query
-    if not q:
-        return
-
-    data = q.data or ""
-    if not data.startswith("r:"):
-        return
-
-    try:
-        match_id = int(data.split(":", 1)[1])
-    except Exception:
-        await q.answer("Invalid match id", show_alert=True)
-        return
-
-    await q.answer("Building report...")
-
-    try:
-        main_text = await asyncio.to_thread(build_report_texts, match_id)
-    except Exception as e:
-        await q.message.reply_text(f"Report error for {match_id}: {e}") # type: ignore
-        return
-
-    for part in _chunk_text(main_text, limit=4000):
-        await q.message.reply_text(part) # type: ignore
-
-    for part in _chunk_text(main_text, limit=4000):
-        await q.message.reply_text(part) # type: ignore
