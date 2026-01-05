@@ -710,19 +710,3 @@ async def on_report_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     for part in _chunk_text(main_text, limit=4000):
         await q.message.reply_text(part) # type: ignore
-
-
-def main() -> None:
-    token = os.getenv("TG_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token:
-        raise RuntimeError("TG_BOT_TOKEN is missing in .env")
-
-    app = Application.builder().token(token).build()
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("upcoming", cmd_upcoming))
-    app.add_handler(CallbackQueryHandler(on_report_callback, pattern=r"^r:\d+$"))
-    app.run_polling(close_loop=False)
-
-
-if __name__ == "__main__":
-    main()
