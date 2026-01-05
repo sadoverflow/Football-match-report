@@ -25,7 +25,7 @@ DEFAULT_LEAGUE_IDS = (
 
 
 def _load_settings() -> BotSettings:
-    token = os.getenv("BOT_TOKEN", "").strip()
+    token = os.getenv("TG_BOT_TOKEN", "").strip()
     if not token:
         raise RuntimeError("BOT_TOKEN is missing")
 
