@@ -1,0 +1,4 @@
+python-dotenv
+fastapi[standard]
+python-telegram-bot>=20.0
+pydantic>=2.0.0
