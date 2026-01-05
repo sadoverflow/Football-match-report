@@ -243,7 +243,6 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Commands:\n"
         "/upcoming — upcoming matches (grouped by league)\n"
         "/report <match_id> — get report for a match\n\n"
-        f"Allowed league_ids: {allowed}"
     )
     await update.message.reply_text(txt)
 
